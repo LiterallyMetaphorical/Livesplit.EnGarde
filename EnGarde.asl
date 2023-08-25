@@ -190,5 +190,5 @@ isLoading
 
 onReset
 {
-    vars.doneMapss.Clear();
+    vars.doneMaps.Clear();
 }
