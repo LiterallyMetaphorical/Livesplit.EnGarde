@@ -23,28 +23,47 @@ E2M1 ``/Game/EnGarde/Maps/Main_Level2/L2C1/LAC1_Persistent``
 E2M2 ``/Game/EnGarde/Maps/Main_Level2/L2A1/LAA1_Persistent``
 */
 
-state ("EnGarde-Win64-Shipping") 
+state ("EnGarde-Win64-Shipping", "Steam v1.1") 
 {
-	bool loading             : 0x075AB490, 0x0, 0x100, 0xBF0;
+	int loading              : 0x075AB490, 0x0, 0x100, 0xBF0;
     string300 activeSubtitle : 0x0758C610, 0x0, 0x10, 0x3D0, 0x20, 0x28, 0x0;
-    string150 loadedMap      : 0x0758AC40, 0xAE0, 0x0; // its really the current loaded map but shhhhhhhhhhhhh
+    string150 loadedMap      : 0x0758AC40, 0xAE0, 0x0;
+}
+
+state ("EnGarde-Win64-Shipping", "Steam v1.3") 
+{
+	int loading              : 0x072955B0, 0x8, 0x3BC;
+    string300 activeSubtitle : 0x07590AC8, 0x2C0, 0xD8, 0x6E8, 0x28, 0x0; // 28 and 0 are consistent offsets
+    string300 loadedMap      : 0x0758CCC0, 0xAE0, 0x0;
 }
 
 init
 {
-    vars.doneMap = new List<string>();
+    vars.doneMaps = new List<string>();
+
+    switch (modules.First().ModuleMemorySize) 
+    {
+        case 130756608: 
+            version = "Steam v1.1";
+            break;
+        case 130764800 : 
+            version = "Steam v1.3";
+            break;
+    default:
+        print("Unknown version detected");
+        return false;
+    }
 }
 
 onStart
 {
     // This is a "cycle fix", makes sure the timer always starts at 0.00
     timer.IsGameTimePaused = true;
-    vars.doneMap.Add(current.loadedMap);
+    vars.doneMaps.Add(current.loadedMap);
 }
 
 startup
   {
-
     settings.Add("EnGarde", true, "All Maps");
     settings.Add("E3M1 Exhibition Room", false, "Split when Adalia reaches the exhibition room with Zaida in E3M1");
     settings.Add("Count-Duke Defeated", false, "Split when Adalia says I have you now, Count-Duke! near the end of E4M8");
@@ -81,8 +100,7 @@ startup
         {"/Game/EnGarde/Maps/Main_LevelC/LCA4/LCA4_Persistent", "E3M8"},
         {"/Game/EnGarde/Maps/Main_LevelC/LCDioramaEnd/LCDE_Persistent", "E3 Ending Cutscene"},
     // Chapter 4
-      //{"/Game/EnGarde/Maps/Main_LevelD/LD_DioramaBegin/LDDB_Persistent", "E3M1"},
-        {"/Game/EnGarde/Maps/Main_LevelD/LDC1/LDC1_Persistent", "E4M1"},
+        //{"/Game/EnGarde/Maps/Main_LevelD/LDC1/LDC1_Persistent", "E4M1"},
         {"/Game/EnGarde/Maps/Main_LevelD/LDC2-1/LDC2-1_Persistent", "E4M2"},
         {"/Game/EnGarde/Maps/Main_LevelD/LDA1/LDA1_Persistent", "E4M3"},
         {"/Game/EnGarde/Maps/Main_LevelD/LDC2-2/LDC2-2_Persistent", "E4M4"},
@@ -118,9 +136,10 @@ startup
 
 update
 { 
-    //print(current.loading.ToString());
+    print(current.loading.ToString());
     //print(current.loadedMap.ToString());
     //print(current.activeSubtitle.ToString());
+    //print(modules.First().ModuleMemorySize.ToString());
 }
 
 start
@@ -140,9 +159,9 @@ if
 
 split
 {
-    if (settings[current.loadedMap] && (!vars.doneMap.Contains(current.loadedMap)))
+    if (settings[current.loadedMap] && (!vars.doneMaps.Contains(current.loadedMap)))
     {
-        vars.doneMap.Add(current.loadedMap);
+        vars.doneMaps.Add(current.loadedMap);
         return true;
     }
 
@@ -154,11 +173,22 @@ split
     {
         return true;
     }
-    //
 }
 
 isLoading 
-{
-	return current.loading;
+{   //regular loads
+	return current.loading == 1 ||
+    //End Screen Episode 1
+    current.loadedMap == "/Game/EnGarde/Maps/Main_Level1/L1_DioramaEnd/LB_DE_Persistent" ||
+    //End Screen Episode 2
+    current.loadedMap == "/Game/EnGarde/Maps/Main_Level2/L2DioramaEnd/LADE_Persistent" ||
+    //End Screen Episode 3
+    current.loadedMap == "/Game/EnGarde/Maps/Main_LevelC/LCDioramaEnd/LCDE_Persistent" ||
+    //End Screen Episode 4
+    current.loadedMap == "/Game/EnGarde/Maps/Main_LevelD/LD_DioramaEnd/LDDE_Persistent";
 }
 
+onReset
+{
+    vars.doneMapss.Clear();
+}
