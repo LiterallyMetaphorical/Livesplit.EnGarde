@@ -34,6 +34,13 @@ state ("EnGarde-Win64-Shipping", "Steam v1.3")
 {
 	int loading              : 0x072955B0, 0x8, 0x3BC;
     string300 activeSubtitle : 0x07590AC8, 0x2C0, 0xD8, 0x6E8, 0x28, 0x0; // 28 and 0 are consistent offsets
+    string300 loadedMap      : 0x072B0570, 0xAE0, 0x0;
+}
+
+state ("EnGarde-Win64-Shipping", "Steam v1.4") 
+{
+	int loading              : 0x072D0DC0, 0x0, 0x298, 0x570;
+    string300 activeSubtitle : 0x07590AC8, 0x2C0, 0xD8, 0x6E8, 0x28, 0x0; // 28 and 0 are consistent offsets
     string300 loadedMap      : 0x0758CCC0, 0xAE0, 0x0;
 }
 
@@ -48,6 +55,9 @@ init
             break;
         case 130764800 : 
             version = "Steam v1.3";
+            break;
+        case 127627264 :
+            version = "Steam v1.4";
             break;
     default:
         print("Unknown version detected");
@@ -136,10 +146,10 @@ startup
 
 update
 { 
-    print(current.loading.ToString());
+    //print(current.loading.ToString());
     //print(current.loadedMap.ToString());
     //print(current.activeSubtitle.ToString());
-    //print(modules.First().ModuleMemorySize.ToString());
+    print(modules.First().ModuleMemorySize.ToString());
 }
 
 start
