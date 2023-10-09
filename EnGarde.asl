@@ -26,19 +26,16 @@ E2M2 ``/Game/EnGarde/Maps/Main_Level2/L2A1/LAA1_Persistent``
 state ("EnGarde-Win64-Shipping", "Steam v1.1") 
 {
     string300 activeSubtitle : 0x0758C610, 0x0, 0x10, 0x3D0, 0x20, 0x28, 0x0;
-    string150 loadedMap      : 0x0758AC40, 0xAE0, 0x0;
 }
 
 state ("EnGarde-Win64-Shipping", "Steam v1.3") 
 {
     string300 activeSubtitle : 0x07590AC8, 0x2C0, 0xD8, 0x6E8, 0x28, 0x0; // 28 and 0 are consistent offsets
-    string300 loadedMap      : 0x072B0570, 0xAE0, 0x0;
 }
 
 state ("EnGarde-Win64-Shipping", "Steam v1.4") 
 {
     string300 activeSubtitle : 0x07590AC8, 0x2C0, 0xD8, 0x6E8, 0x28, 0x0; // 28 and 0 are consistent offsets
-    string300 loadedMap      : 0x072B0570, 0xAE0, 0x0; //didnt change between 1.3/1.4 - interesting
 }
 
 init
@@ -48,15 +45,24 @@ init
     var syncLoadTrg = new SigScanTarget(5, "89 43 60 8B 05 ?? ?? ?? ??") { OnFound = (p, s, ptr) => ptr + 0x4 + game.ReadValue<int>(ptr) };
     var syncLoadCounterPtr = scn.Scan(syncLoadTrg);
 
+    //sig scan for loaded map lol idk what else to write here
+    var loadedMapBaseAddress = scn.Scan(new SigScanTarget(3, "488B??????????498B??E8????????488B??????????41BF") { OnFound = (p, s, ptr) => ptr + 0x4 + game.ReadValue<int>(ptr) });
+    var loadedMapPointer = new DeepPointer (loadedMapBaseAddress, 0xAE0, 0x0);
+    
+
     vars.Watchers = new MemoryWatcherList
     {
         // GSyncLoadCount
         new MemoryWatcher<int>(new DeepPointer(syncLoadCounterPtr)) { Name = "syncLoadCount" },
+        new StringWatcher(loadedMapPointer,150) { Name = "loadedMap"}
     };
 
     vars.doneMaps = new List<string>();
 
     vars.Watchers.UpdateAll(game);
+
+    //helps to fix errors for old states of the sigscan
+    current.loadedMap = "";
 
     //sets var loading from the memory watcher
     current.loading = old.loading = vars.Watchers["syncLoadCount"].Current > 0;
@@ -182,15 +188,16 @@ update
 
     // The game is considered to be loading if any scenes are loading synchronously
     current.loading = vars.Watchers["syncLoadCount"].Current > 0;
+    current.loadedMap = vars.Watchers["loadedMap"].Current;
     //print(current.loading.ToString());
-    //print(current.loadedMap.ToString());
+    print(current.loadedMap.ToString());
     //print(current.activeSubtitle.ToString());
     //print(modules.First().ModuleMemorySize.ToString());
 }
 
 start
 {
-if
+    if
     (   //Episode 1 Autostart
         (old.loadedMap == "/Game/EnGarde/Maps/Main_Level1/L1_DioramaBegin/LB_DB_Persistent" && current.loadedMap == "/Game/EnGarde/Maps/Main_Level1/L1_C1/LBC1_Persistent") ||
         //Episode 2 Autostart
