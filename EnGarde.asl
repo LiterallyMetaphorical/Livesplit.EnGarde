@@ -7,7 +7,7 @@ E1C1 == Episode 1 Cutscene 1
 Map IDs:
 
 MM   ``/Game/EnGarde/Maps/MainMenu/MainMenu``
-
+//note that v1.4+ for some reason you cant scan main menu first lol. Load into E1M1 and start scan from there, then go to MM.
 E1C1 ``/Game/EnGarde/Maps/Main_Level1/L1_DioramaBegin/LB_DB_Persistent``
 E1M1 ``/Game/EnGarde/Maps/Main_Level1/L1_C1/LBC1_Persistent``
 E1M2 ``/Game/EnGarde/Maps/Main_Level1/L1_A6/LBA6_Persistent``
@@ -25,28 +25,41 @@ E2M2 ``/Game/EnGarde/Maps/Main_Level2/L2A1/LAA1_Persistent``
 
 state ("EnGarde-Win64-Shipping", "Steam v1.1") 
 {
-	int loading              : 0x075AB490, 0x0, 0x100, 0xBF0;
     string300 activeSubtitle : 0x0758C610, 0x0, 0x10, 0x3D0, 0x20, 0x28, 0x0;
     string150 loadedMap      : 0x0758AC40, 0xAE0, 0x0;
 }
 
 state ("EnGarde-Win64-Shipping", "Steam v1.3") 
 {
-	int loading              : 0x072955B0, 0x8, 0x3BC;
     string300 activeSubtitle : 0x07590AC8, 0x2C0, 0xD8, 0x6E8, 0x28, 0x0; // 28 and 0 are consistent offsets
     string300 loadedMap      : 0x072B0570, 0xAE0, 0x0;
 }
 
 state ("EnGarde-Win64-Shipping", "Steam v1.4") 
 {
-	int loading              : 0x072D0DC0, 0x0, 0x298, 0x570;
     string300 activeSubtitle : 0x07590AC8, 0x2C0, 0xD8, 0x6E8, 0x28, 0x0; // 28 and 0 are consistent offsets
-    string300 loadedMap      : 0x0758CCC0, 0xAE0, 0x0;
+    string300 loadedMap      : 0x072B0570, 0xAE0, 0x0; //didnt change between 1.3/1.4 - interesting
 }
 
 init
 {
+    // Scanning the MainModule for static pointers to GSyncLoadCount, UWorld, UEngine and FNamePool
+    var scn = new SignatureScanner(game, game.MainModule.BaseAddress, game.MainModule.ModuleMemorySize);
+    var syncLoadTrg = new SigScanTarget(5, "89 43 60 8B 05 ?? ?? ?? ??") { OnFound = (p, s, ptr) => ptr + 0x4 + game.ReadValue<int>(ptr) };
+    var syncLoadCounterPtr = scn.Scan(syncLoadTrg);
+
+    vars.Watchers = new MemoryWatcherList
+    {
+        // GSyncLoadCount
+        new MemoryWatcher<int>(new DeepPointer(syncLoadCounterPtr)) { Name = "syncLoadCount" },
+    };
+
     vars.doneMaps = new List<string>();
+
+    vars.Watchers.UpdateAll(game);
+
+    //sets var loading from the memory watcher
+    current.loading = old.loading = vars.Watchers["syncLoadCount"].Current > 0;
 
     switch (modules.First().ModuleMemorySize) 
     {
@@ -142,14 +155,37 @@ startup
             timer.CurrentTimingMethod = TimingMethod.GameTime;
         }
     }
+
+    //creates text components for variable information
+	vars.SetTextComponent = (Action<string, string>)((id, text) =>
+	{
+	        var textSettings = timer.Layout.Components.Where(x => x.GetType().Name == "TextComponent").Select(x => x.GetType().GetProperty("Settings").GetValue(x, null));
+	        var textSetting = textSettings.FirstOrDefault(x => (x.GetType().GetProperty("Text1").GetValue(x, null) as string) == id);
+	        if (textSetting == null)
+	        {
+	        var textComponentAssembly = Assembly.LoadFrom("Components\\LiveSplit.Text.dll");
+	        var textComponent = Activator.CreateInstance(textComponentAssembly.GetType("LiveSplit.UI.Components.TextComponent"), timer);
+	        timer.Layout.LayoutComponents.Add(new LiveSplit.UI.Components.LayoutComponent("LiveSplit.Text.dll", textComponent as LiveSplit.UI.Components.IComponent));
+	
+	        textSetting = textComponent.GetType().GetProperty("Settings", BindingFlags.Instance | BindingFlags.Public).GetValue(textComponent, null);
+	        textSetting.GetType().GetProperty("Text1").SetValue(textSetting, id);
+	        }
+	
+	        if (textSetting != null)
+	        textSetting.GetType().GetProperty("Text2").SetValue(textSetting, text);
+    });
 }
 
 update
 { 
+    vars.Watchers.UpdateAll(game);
+
+    // The game is considered to be loading if any scenes are loading synchronously
+    current.loading = vars.Watchers["syncLoadCount"].Current > 0;
     //print(current.loading.ToString());
     //print(current.loadedMap.ToString());
     //print(current.activeSubtitle.ToString());
-    print(modules.First().ModuleMemorySize.ToString());
+    //print(modules.First().ModuleMemorySize.ToString());
 }
 
 start
@@ -187,7 +223,7 @@ split
 
 isLoading 
 {   //regular loads
-	return current.loading == 1 ||
+	return current.loading ||
     //End Screen Episode 1
     current.loadedMap == "/Game/EnGarde/Maps/Main_Level1/L1_DioramaEnd/LB_DE_Persistent" ||
     //End Screen Episode 2
